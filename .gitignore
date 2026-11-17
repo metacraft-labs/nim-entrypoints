@@ -1,0 +1,15 @@
+nimcache/
+# Per-checkout nimcache (config.nims): every Nim compile in this checkout
+# keeps its intermediate files here, never in the shared ~/.cache/nim. The
+# tests build their fixture programs below it too (.nimcache/test-builds).
+.nimcache/
+*.exe
+build/
+.repro/
+test-logs/
+
+# Compiled test binaries (built next to their .nim sources by a bare
+# `nim c -r tests/<file>.nim`).
+tests/test_cs_m13_entry_selection
+tests/test_cs_m13_testutils_compatible
+tests/test_suite_lists_agree
