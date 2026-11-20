@@ -43,14 +43,14 @@ are imported only by programs that use it.
 
 ## The pieces
 
-| Module | Provides |
-| --- | --- |
-| `entrypoints` | `main:`, `entryPoint "<name>":`, `entryArgs()`, `selectedEntry()`, the list, compile-time and run-time selection |
-| `entrypoints/tests` | the `tests` entry: `testCase`, `tests:` blocks, list / run all / run one by name |
-| `entrypoints/fuzz` | `fuzzTarget "<name>":` entries: AFL-style input from a file or standard input, and libFuzzer's exports |
+| Module                 | Provides                                                                                                             |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `entrypoints`          | `main:`, `entryPoint "<name>":`, `entryArgs()`, `selectedEntry()`, the list, compile-time and run-time selection     |
+| `entrypoints/tests`    | the `tests` entry: `testCase`, `tests:` blocks, list / run all / run one by name                                     |
+| `entrypoints/fuzz`     | `fuzzTarget "<name>":` entries: AFL-style input from a file or standard input, and libFuzzer's exports               |
 | `entrypoints/describe` | `describeProgram(Tool)`: the `complete`, `completion`, `help-json` and `config-schema` entries for a clispec program |
-| `entrypoints/clispec` | `cliProgramWithEntryPoint`, `entryPointParameter()`: the run-time selector as a clispec internal parameter |
-| `compat/testutils/` | drop-in `testutils/moduletests` and `testutils/fuzzing` for sources written for nim-testutils |
+| `entrypoints/clispec`  | `cliProgramWithEntryPoint`, `entryPointParameter()`: the run-time selector as a clispec internal parameter           |
+| `compat/testutils/`    | drop-in `testutils/moduletests` and `testutils/fuzzing` for sources written for nim-testutils                        |
 
 ## Declaring entries
 
@@ -109,7 +109,7 @@ the compile and lists the registered ones; an entry that does not allow
 binary that carries every entry: it runs `main`, and the code that reads the
 arguments for the selector is not compiled.
 
-**Run time.** The selector is the *first* argument: `--entrypoint=<name>` or
+**Run time.** The selector is the _first_ argument: `--entrypoint=<name>` or
 `--entrypoint <name>`. It is taken before `main` runs, and the rest of the
 arguments belong to the entry (`entryArgs()`). Since only the first argument is
 looked at, the selector cannot collide with a program's own parameters.
@@ -127,13 +127,25 @@ that entry's name, answers `--entrypoint=list`, and refuses any other.
 anything else:
 
 ```json
-{"schema":"entrypoints/1","program":"prog","default":"main",
- "entries":[
-  {"name":"main","doc":"run the program","select":["compiletime","runtime"]},
-  {"name":"tests","doc":"run the program's tests",
-   "select":["compiletime","runtime"],
-   "args":"[--list] [--run=<name>]... [<test framework options>]",
-   "entries":["addition"]}]}
+{
+  "schema": "entrypoints/1",
+  "program": "prog",
+  "default": "main",
+  "entries": [
+    {
+      "name": "main",
+      "doc": "run the program",
+      "select": ["compiletime", "runtime"]
+    },
+    {
+      "name": "tests",
+      "doc": "run the program's tests",
+      "select": ["compiletime", "runtime"],
+      "args": "[--list] [--run=<name>]... [--run-exact=<name>]... [<test framework options>]",
+      "entries": ["addition"]
+    }
+  ]
+}
 ```
 
 `default` is the entry that runs with no selector: `main`, or the one a binary
@@ -172,6 +184,20 @@ main:
 - `prog --entrypoint=tests --run=<name>` runs the tests with that name (repeat
   `--run`; `*` and `?` match, and a test framework's `suite::name` spelling
   works). Arguments the framework takes itself pass through to it.
+- `prog --entrypoint=tests --run-exact=<name>` runs the test whose name is
+  exactly `<name>` as `--list` printed it, never read as a pattern: a test
+  named `a*b` runs alone, not with `aXb`. This is the form for a build tool
+  that lists a binary's tests and runs each by the name it read. A name that
+  `--list` does not print exits with code 64 and says so, and so does
+  `--run-exact` together with `--run`; `--run-exact` can be repeated. In a
+  `tests:` block, the entry runs each `test "..."` call with a literal name
+  only when its listed name was given, and a `test` call that `--list` does
+  not name (its name is not a literal, or it is written `unittest2.test`)
+  not at all, rather than hand the name to the framework, whose filters are
+  patterns.
+- Test names fit on one line. A `testCase` name with a line break stops the
+  compile; a framework test with such a name makes `--list` exit with code
+  70, naming it, before it prints anything.
 - `nim c -d:entrypoint=tests prog.nim` builds a binary for the tests alone,
   with no `main` in it. Its `tests:` blocks stay where they are written (at
   module scope), so declarations in them are visible to the rest of the
@@ -239,12 +265,12 @@ main:
 `describeProgram` registers entries a package build or an installer can call
 on the binary it just built, with the same flags:
 
-| Entry | Prints |
-| --- | --- |
-| `complete <shell> <words...>` | the answer to a completion request |
-| `completion <shell>` | the shell's completion script, which asks `tool --entrypoint=complete` for candidates |
-| `help-json [<subcommand>...]` | the `clispec-help/1` document |
-| `config-schema` | the configuration keys files can supply, as JSON (`entrypoints-config/1`) |
+| Entry                         | Prints                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------- |
+| `complete <shell> <words...>` | the answer to a completion request                                                    |
+| `completion <shell>`          | the shell's completion script, which asks `tool --entrypoint=complete` for candidates |
+| `help-json [<subcommand>...]` | the `clispec-help/1` document                                                         |
+| `config-schema`               | the configuration keys files can supply, as JSON (`entrypoints-config/1`)             |
 
 So `tool --entrypoint=completion zsh` prints a script that matches this very
 binary, and the program's own command line needs no `completion` or

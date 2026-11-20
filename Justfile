@@ -43,7 +43,7 @@ alias fmt := format
 src-paths := "--path:src"
 nim-flags := "--skipParentCfg --skipUserCfg --hints:off"
 nimcache := ".nimcache"
-tests := "test_cs_m13_entry_selection test_cs_m13_testutils_compatible test_suite_lists_agree"
+tests := "test_cs_m13_entry_selection test_cs_m13_testutils_compatible test_cs_m14_tests_entry_exact_run test_suite_lists_agree"
 
 # Compile every test module without running it.
 build:

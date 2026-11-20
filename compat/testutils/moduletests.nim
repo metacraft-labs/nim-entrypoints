@@ -23,6 +23,8 @@
 ## ``tests:`` body is not type-checked and compiled away; it is compiled in and
 ## runs when the program is started with ``--entrypoint=tests``. unittest2's
 ## own option and filter arguments, and ``--run=<name>``, are handed on to it.
+## ``--run-exact=<name>`` is not: unittest2's filters are patterns, so the
+## entry guards the block's ``test`` calls itself (``entrypoints/tests``).
 ## Import this module (or ``entrypoints``) before ``unittest2``, so that the
 ## selector argument is not read by unittest2 as a test filter. When the order
 ## is the other way round, a run with no filter would skip every test and
@@ -94,7 +96,9 @@ macro tests*(body: untyped): untyped =
       unittest2.resetOutputFormatters()
       `probe`
       unittest2.parseParameters(`args`())
-  let code = testBlockCode(newStmtList(prepare, body), body)
+  # The set-up is the block's prelude: its probe is a test, and it must run
+  # under ``--run-exact`` too, where the block's own tests are guarded.
+  let code = testBlockCode(body, body, prepare)
   result = newStmtList(importer, code)
 
 template programMain*(body: untyped) =

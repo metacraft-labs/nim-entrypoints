@@ -55,6 +55,33 @@ proc depPath*(name, envVar: string; siblings: openArray[string]): string =
       return repoDir.parentDir() / s
   result = nimbleDep(name)
 
+proc testutilsPath*(): string =
+  ## nim-testutils' checkout: `ENTRYPOINTS_TESTUTILS_PATH`, else a checkout
+  ## beside this one, else the nimble package store.
+  result = depPath("testutils", "ENTRYPOINTS_TESTUTILS_PATH",
+    ["nim-testutils", "wt-testutils"])
+  doAssert result.len > 0 and fileExists(result / "testutils" / "moduletests.nim"),
+    "nim-testutils is not on hand: set ENTRYPOINTS_TESTUTILS_PATH to its checkout"
+
+proc packagePaths*(): seq[string] =
+  ## The packages nim-testutils needs (unittest2, stew, results):
+  ## `ENTRYPOINTS_NIM_PATHS` (separated like `PATH`), else the nimble
+  ## package store.
+  let given = getEnv("ENTRYPOINTS_NIM_PATHS")
+  if given.len > 0:
+    for p in given.split(PathSep):
+      if p.len > 0: result.add(p)
+  for pkg in ["unittest2", "stew", "results"]:
+    var present = false
+    for p in result:
+      if (p / (pkg & ".nim")).fileExists or dirExists(p / pkg):
+        present = true
+    if not present:
+      let dir = nimbleDep(pkg)
+      doAssert dir.len > 0, "the package '" & pkg & "' (needed by " &
+        "nim-testutils) is not on hand: set ENTRYPOINTS_NIM_PATHS"
+      result.add(dir)
+
 proc runProgram*(exe: string; args: openArray[string] = [];
                  input = ""; env: openArray[(string, string)] = [];
                  timeoutMs = 60_000): RunResult =

@@ -33,7 +33,8 @@ library depends on nothing but the standard library. clispec
   (schema `entrypoints/1`).
 - `src/entrypoints/tests.nim`: the `tests` entry: `testCase`, `tests:` blocks
   (placed in place, guarded, or dropped depending on the build) and the run
-  of `--list` / `--run=<name>`.
+  of `--list` / `--run=<name>` / `--run-exact=<name>` (the exact form a
+  build tool uses; a `tests:` block's `test` calls are guarded for it).
 - `src/entrypoints/fuzz.nim`: `fuzzTarget`, the AFL-shape reader and the
   libFuzzer exports; the helpers `compat/testutils/fuzzing.nim` shares.
 - `src/entrypoints/describe.nim` and `src/entrypoints/clispec.nim`: the
@@ -53,6 +54,10 @@ library depends on nothing but the standard library. clispec
 - `tests/test_cs_m13_testutils_compatible.nim` (fixtures in
   `tests/fixtures/testutils/`): real nim-testutils sources built with and
   without `compat` on the path and compared.
+- `tests/test_cs_m14_tests_entry_exact_run.nim` (fixtures in
+  `tests/fixtures/exact/`): `--run-exact` selects exactly one listed name,
+  for `testCase`s and for unittest2 tests in a `tests:` block, refuses an
+  unknown name with 64, and test names fit on one line.
 - `tests/test_suite_lists_agree.nim` keeps the three lists of test modules
   equal: the Justfile's `tests`, the nimble `test` task and `repro.nim`'s
   `entrypointsTests`. A new test module goes into all three lists.

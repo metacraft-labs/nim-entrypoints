@@ -20,5 +20,5 @@ requires "nim >= 2.0.0"
 
 task test, "Run the test suite":
   for t in ["test_cs_m13_entry_selection", "test_cs_m13_testutils_compatible",
-            "test_suite_lists_agree"]:
+            "test_cs_m14_tests_entry_exact_run", "test_suite_lists_agree"]:
     exec "nim c -r --hints:off tests/" & t & ".nim"

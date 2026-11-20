@@ -36,28 +36,6 @@ const
   fixtures = testsDir / "fixtures" / "testutils"
   compat = repoDir / "compat"
 
-proc testutilsPath(): string =
-  result = depPath("testutils", "ENTRYPOINTS_TESTUTILS_PATH",
-    ["nim-testutils", "wt-testutils"])
-  doAssert result.len > 0 and fileExists(result / "testutils" / "moduletests.nim"),
-    "nim-testutils is not on hand: set ENTRYPOINTS_TESTUTILS_PATH to its checkout"
-
-proc packagePaths(): seq[string] =
-  let given = getEnv("ENTRYPOINTS_NIM_PATHS")
-  if given.len > 0:
-    for p in given.split(PathSep):
-      if p.len > 0: result.add(p)
-  for pkg in ["unittest2", "stew", "results"]:
-    var present = false
-    for p in result:
-      if (p / (pkg & ".nim")).fileExists or dirExists(p / pkg):
-        present = true
-    if not present:
-      let dir = nimbleDep(pkg)
-      doAssert dir.len > 0, "the package '" & pkg & "' (needed by " &
-        "nim-testutils) is not on hand: set ENTRYPOINTS_NIM_PATHS"
-      result.add(dir)
-
 var built: HashSet[string]
 
 proc build(name, source: string; shim: bool; flags: varargs[string]): string =
