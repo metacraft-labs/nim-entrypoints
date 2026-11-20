@@ -283,10 +283,16 @@ suite "test_cs_m13_entry_selection":
     r = run(exe, "--entrypoint=list")
     check "entrypoints/1" notin r.output
     check r.output == "MAINMARKER verbose=false selector=[list]\n"
+    # The selector's error path, `entryUsageError`, is detected by its name,
+    # which the binary holds as data (the symbol table, and the procedure's
+    # frame name for stack traces) exactly when the procedure is compiled in.
+    # Its message text is no marker: the C compiler may store a short
+    # literal as immediate operands of the instructions that copy it, so the
+    # text is not in the binary in one piece even when the code is.
     check not binaryHolds("fx_runtime_off", "entrypoints/1")
-    check not binaryHolds("fx_runtime_off", "unknown entry")
+    check not binaryHolds("fx_runtime_off", "entryUsageError")
     check binaryHolds("fx_default", "entrypoints/1")
-    check binaryHolds("fx_default", "unknown entry")
+    check binaryHolds("fx_default", "entryUsageError")
     check getFileSize(binaryOf("fx_runtime_off")) <
       getFileSize(binaryOf("fx_default"))
     # without the selector, the other entries are not in the binary either
