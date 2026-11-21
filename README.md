@@ -141,7 +141,7 @@ anything else:
       "name": "tests",
       "doc": "run the program's tests",
       "select": ["compiletime", "runtime"],
-      "args": "[--list] [--run=<name>]... [--run-exact=<name>]... [<test framework options>]",
+      "args": "[--list] [--list-test-cases] [--run=<name>]... [--run-exact=<name>]... [<test framework options>]",
       "entries": ["addition"]
     }
   ]
@@ -181,6 +181,11 @@ main:
   runs nothing. They are also in the entry's list. A `tests:` block's
   `suite "..."` and `test "..."` calls with literal names are found without
   running it; names under a `when` are listed at run time only.
+- `prog --entrypoint=tests --list-test-cases` prints only the `testCase`
+  names, in the same order and with the same checks: the tests that
+  `-d:entrypointsTest=<name>` (below) can build alone. A build tool that
+  builds one binary per test compares it with `--list` to refuse a `tests:`
+  block's test before it compiles anything.
 - `prog --entrypoint=tests --run=<name>` runs the tests with that name (repeat
   `--run`; `*` and `?` match, and a test framework's `suite::name` spelling
   works). Arguments the framework takes itself pass through to it.
@@ -202,6 +207,18 @@ main:
   with no `main` in it. Its `tests:` blocks stay where they are written (at
   module scope), so declarations in them are visible to the rest of the
   module, and run when the process starts.
+- `nim c -d:entrypointsTest=<name> prog.nim` builds a binary for the one
+  `testCase` named `<name>`, as `--list` prints it. Every other `testCase`
+  expands to nothing (its body is not type-checked and its name is not in
+  the binary), and `tests:` blocks leave no code, since a framework runs a
+  block's tests together. The binary lists and runs that one test, and
+  `main` is still in it unless `-d:entrypoint=tests` is given too. A test's
+  binary therefore stays byte-identical when only another test's body
+  changes, as long as its own lines do not move (their numbers are in the
+  binary, for stack traces), so a build tool that keys each test's run on
+  its binary reruns only the edited test. A name that no `testCase` has (a
+  `tests:` block's test included), and a build without the tests entry,
+  stop the compile.
 - In a build that carries `main` as well, a `tests:` block is guarded by the
   run-time selection and is a block of its own (so an `import` inside it must
   move out); in a build for another entry it leaves no code and is not

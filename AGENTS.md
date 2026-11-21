@@ -33,8 +33,12 @@ library depends on nothing but the standard library. clispec
   (schema `entrypoints/1`).
 - `src/entrypoints/tests.nim`: the `tests` entry: `testCase`, `tests:` blocks
   (placed in place, guarded, or dropped depending on the build) and the run
-  of `--list` / `--run=<name>` / `--run-exact=<name>` (the exact form a
-  build tool uses; a `tests:` block's `test` calls are guarded for it).
+  of `--list` / `--list-test-cases` / `--run=<name>` / `--run-exact=<name>`
+  (the exact form a build tool uses; a `tests:` block's `test` calls are
+  guarded for it), and
+  `-d:entrypointsTest=<name>`, the build for one `testCase` (`testSelected`;
+  the others and every `tests:` block expand to nothing, and `main:` refuses
+  an unknown name through `expectEntryNote`).
 - `src/entrypoints/fuzz.nim`: `fuzzTarget`, the AFL-shape reader and the
   libFuzzer exports; the helpers `compat/testutils/fuzzing.nim` shares.
 - `src/entrypoints/describe.nim` and `src/entrypoints/clispec.nim`: the
@@ -58,6 +62,13 @@ library depends on nothing but the standard library. clispec
   `tests/fixtures/exact/`): `--run-exact` selects exactly one listed name,
   for `testCase`s and for unittest2 tests in a `tests:` block, refuses an
   unknown name with 64, and test names fit on one line.
+- `tests/test_cs_m14_tests_entry_one_test_build.nim` (fixture
+  `tests/fixtures/one_test/suite.nim`): a `-d:entrypointsTest=<name>` binary
+  holds, lists and runs that test alone; `--list-test-cases` lists the
+  `testCase`s only; an edit of one test's body leaves the other tests'
+  binaries byte-identical; the other bodies are not type-checked; unknown,
+  empty and multi-line names and builds without the tests entry are
+  refused.
 - `tests/test_suite_lists_agree.nim` keeps the three lists of test modules
   equal: the Justfile's `tests`, the nimble `test` task and `repro.nim`'s
   `entrypointsTests`. A new test module goes into all three lists.

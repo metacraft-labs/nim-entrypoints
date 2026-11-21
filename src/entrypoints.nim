@@ -53,7 +53,9 @@
 ##   ``return`` or ``quit``) to give the process's exit code.
 ## * A library packages an entry as a template or macro that expands to
 ##   ``entryPoint``. ``addEntryNote`` lets many modules contribute to one
-##   entry's list (every test of every module, for the tests entry).
+##   entry's list (every test of every module, for the tests entry), and
+##   ``expectEntryNote`` makes the compile fail when a note it names is
+##   missing from that list once ``main:`` closes it.
 ##
 ## Selection
 ## =========
@@ -137,6 +139,10 @@ type
     select: set[SelectKind]
     sym: NimNode
     notes: seq[string]
+    expected: seq[tuple[note, missing: string]]
+      ## Notes that must be among ``notes`` when ``main:`` closes the
+      ## registry, each with the compile error to give when it is not
+      ## (``expectEntryNote``).
 
 var
   entryRegistry {.compileTime.}: seq[EntryDef]
@@ -202,6 +208,21 @@ proc addEntryNote*(name, note: string) {.compileTime.} =
     error("entrypoints: addEntryNote('" & name & "') after `main:`; the " &
       "list is written when `main:` closes the registry")
   entryRegistry[i].notes.add(note)
+
+proc expectEntryNote*(name, note, missing: string) {.compileTime.} =
+  ## Requires that entry ``name`` carry the note ``note`` when ``main:``
+  ## closes the registry, and makes ``missing`` the compile error when it
+  ## does not. The tests entry uses it for the test a
+  ## ``-d:entrypointsTest=<name>`` build is for: only the end of the
+  ## compilation knows that no module declared it. The entry must have been
+  ## registered.
+  let i = registryIndex(name)
+  if i < 0:
+    error("entrypoints: expectEntryNote: no entry '" & name & "'")
+  if registryClosed:
+    error("entrypoints: expectEntryNote('" & name & "') after `main:`; " &
+      "the list is closed when `main:` closes the registry")
+  entryRegistry[i].expected.add((note, missing))
 
 proc setEntryProc*(index: int; sym: NimNode) {.compileTime.} =
   ## Gives entry ``index`` the procedure (taking nothing, returning ``int``,
@@ -462,6 +483,10 @@ macro main*(rest: varargs[untyped]): untyped =
     error("entrypoints: `main:` is written once, and no entry's library may " &
       "come after it")
   registryClosed = true
+  for e in entryRegistry:
+    for x in e.expected:
+      if x.note notin e.notes:
+        error(x.missing)
   let sel = compileSelected
   if sel != "" and sel != "main":
     let i = registryIndex(sel)

@@ -47,6 +47,8 @@ const entrypointsTests = [
     runsCompiler: true),
   EntrypointsTest(source: "tests/test_cs_m14_tests_entry_exact_run.nim",
     runsCompiler: true),
+  EntrypointsTest(source: "tests/test_cs_m14_tests_entry_one_test_build.nim",
+    runsCompiler: true),
   EntrypointsTest(source: "tests/test_suite_lists_agree.nim"),
 ]
 

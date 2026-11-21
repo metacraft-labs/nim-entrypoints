@@ -20,6 +20,11 @@
 ##   every selected test passed.
 ## * ``prog --entrypoint=tests --list`` prints the test names, one per line,
 ##   without running any (also in the entry's list, see ``entrypoints``).
+## * ``prog --entrypoint=tests --list-test-cases`` prints only the names of
+##   the ``testCase`` tests, in the same order: the tests a
+##   ``-d:entrypointsTest=<name>`` build (below) can be made for. A build
+##   tool that builds one binary per test compares it with ``--list`` to
+##   refuse a ``tests:`` block's test before it compiles anything.
 ## * ``prog --entrypoint=tests --run=<name>`` runs the tests with that name
 ##   (``--run`` can be repeated; the ``suite::name`` spelling and ``*``
 ##   patterns select a framework's tests).
@@ -33,6 +38,32 @@
 ## * ``nim c -d:entrypoint=tests prog.nim`` builds a binary for the tests
 ##   alone: ``main`` is not in it, and the process runs the tests when it
 ##   starts.
+##
+## One test, one binary
+## =====================
+##
+## ``nim c -d:entrypointsTest=<name> prog.nim`` builds a binary for the one
+## ``testCase`` named ``<name>`` (the name as ``--list`` prints it). Every
+## other ``testCase`` expands to nothing: its body is not type-checked and
+## leaves no code, and its name is not in the binary. So a binary built for
+## ``alpha`` does not change when only another test's body changes, as long
+## as ``alpha``'s own lines do not move (its line numbers are in the binary,
+## for stack traces and failure messages). A build tool that keys a test's
+## run on the bytes of its binary therefore reruns only the test that was
+## edited.
+##
+## * The binary is otherwise the program as built without the define:
+##   ``--entrypoint=tests --list`` prints the one name, ``--run-exact=<name>``
+##   and ``--entrypoint=tests`` run that test, and ``main`` is still there
+##   (combine with ``-d:entrypoint=tests`` for a binary of that test alone).
+## * ``tests:`` blocks leave no code in such a build. Their tests belong to a
+##   framework that runs them all from one block, so they cannot be built one
+##   by one; a name that only a ``tests:`` block declares is refused like an
+##   unknown one. ``--list-test-cases`` names the tests that can be.
+## * The compile stops when no ``testCase`` has the name (the message names
+##   the define), when the build carries no tests entry
+##   (``-d:entrypoint=<another entry>`` or ``-d:entrypointRuntime=off``), and
+##   when the name is empty or holds a line break.
 ##
 ## Test names fit on one line, so that ``--list`` can print one per line. A
 ## ``testCase`` name with a line break (``\n`` or ``\r``) stops the compile.
@@ -88,6 +119,31 @@ const testsMode* =
   elif compileSelected == "" and runtimeEnabled: 2
   else: 0
 
+const
+  entrypointsTestDefine {.strdefine: "entrypointsTest".} = ""
+  testSelected* =
+    when entrypointsTestDefine == "true":
+      # What Nim gives a bare `-d:entrypointsTest`.
+      {.error: "-d:entrypointsTest needs a test name: " &
+        "-d:entrypointsTest=<name>".}
+    elif defined(entrypointsTest) and entrypointsTestDefine.len == 0:
+      # `-d:entrypointsTest=`: without this it would read as no define at
+      # all and silently build every test.
+      {.error: "-d:entrypointsTest needs a test name: " &
+        "-d:entrypointsTest=<name>".}
+    else: entrypointsTestDefine
+    ## The one ``testCase`` this binary is built for
+    ## (``-d:entrypointsTest=<name>``), or empty when it carries every test.
+    ## See "One test, one binary" above.
+
+when testSelected.len > 0:
+  when testsMode == 0:
+    {.error: "-d:entrypointsTest=" & testSelected & " builds the binary " &
+      "for one test, but this build carries no tests entry (it is built " &
+      "for another entry, or with -d:entrypointRuntime=off)".}
+  when '\n' in testSelected or '\r' in testSelected:
+    {.error: "-d:entrypointsTest: a test name holds no line break".}
+
 proc testsSelected*(): bool =
   ## Whether this process was asked to run the tests: always in a
   ## ``-d:entrypoint=tests`` build, else when ``--entrypoint=tests`` was given.
@@ -102,6 +158,10 @@ const unlistableNameExitCode* = 70
 type TestsArgs* = object
   ## The tests entry's arguments.
   list*: bool
+    ## ``--list``, or ``--list-test-cases`` (which also sets
+    ## ``testCasesOnly``): print names, run nothing.
+  testCasesOnly*: bool
+    ## ``--list-test-cases``: list the ``testCase`` names alone.
   run*: seq[string]
     ## The ``--run=<name>`` names: names or ``*`` / ``?`` patterns.
   exact*: seq[string]
@@ -116,6 +176,9 @@ proc testsArgs*(): TestsArgs =
   for a in entryArgs():
     if a == "--list":
       result.list = true
+    elif a == "--list-test-cases":
+      result.list = true
+      result.testCasesOnly = true
     elif a.startsWith("--run="):
       result.run.add(a["--run=".len .. ^1])
     elif a.startsWith("--run-exact="):
@@ -151,7 +214,8 @@ proc unlistedTestWanted*(): bool =
   testsArgs().exact.len == 0
 
 proc listingOnly*(): bool =
-  ## Whether the process only lists the tests (``--list``).
+  ## Whether the process only lists the tests (``--list`` or
+  ## ``--list-test-cases``).
   testsArgs().list
 
 proc announceBlock*() =
@@ -196,15 +260,26 @@ proc runTests*(): int =
   ## their exit code.
   let a = testsArgs()
   if a.list:
+    # `--list-test-cases`: the names a `-d:entrypointsTest=<name>` build can
+    # be made for, in listing order; not a `tests:` block's.
+    var names: seq[string]
+    for n in announced:
+      if not a.testCasesOnly:
+        names.add(n)
+      else:
+        for t in testCases:
+          if t.name == n:
+            names.add(n)
+            break
     # Every name is checked before any is printed, so a tool never reads a
     # partial list as the whole.
-    for n in announced:
+    for n in names:
       if not n.isOneLine:
         stderr.writeLine("tests: the test name " & n.escape &
           " cannot be listed: it holds a line break, and --list prints " &
           "one name per line; rename the test")
         exitImmediately(unlistableNameExitCode)
-    for n in announced:
+    for n in names:
       stdout.writeLine(n)
     exitImmediately(0)
   if a.exact.len > 0:
@@ -254,9 +329,18 @@ proc runTests*(): int =
 
 when testsMode != 0:
   entryPoint "tests", doc = "run the program's tests",
-             args = "[--list] [--run=<name>]... [--run-exact=<name>]... " &
-               "[<test framework options>]":
+             args = "[--list] [--list-test-cases] [--run=<name>]... " &
+               "[--run-exact=<name>]... [<test framework options>]":
     result = runTests()
+  when testSelected.len > 0:
+    # Only the end of the compilation (`main:`) knows that no module
+    # declared the test.
+    static:
+      expectEntryNote("tests", testSelected, "entrypoints/tests: " &
+        "-d:entrypointsTest=" & testSelected & ": no testCase is named " &
+        "exactly " & testSelected.escape & ". The define names one " &
+        "testCase as --list prints it; a test of a tests: block cannot be " &
+        "built alone, because its framework runs the whole block")
 
 # ---------------------------------------------------------------------------
 # Declaring tests.
@@ -266,11 +350,17 @@ macro testCase*(name: static string; body: untyped): untyped =
   ## A test: passes when ``body`` returns, fails when it raises. ``name``
   ## must fit on one line (no ``\n`` or ``\r``), in every build, so that
   ## ``--list`` can print it.
+  ## In a ``-d:entrypointsTest=<other name>`` build it leaves no code.
   if not name.isOneLine:
     error("testCase " & name.escape & ": a test name must fit on one line " &
       "(no line break), because --list prints one name per line")
   result = newEmptyNode()
   when testsMode != 0:
+    if testSelected.len > 0 and name != testSelected:
+      # A binary for another test: this one's body is neither type-checked
+      # nor compiled, and its name is not in the binary, so an edit of it
+      # leaves that binary unchanged.
+      return
     addEntryNote("tests", name)
     result = newCall(bindSym"registerTestCase", newLit(name),
       newTree(nnkLambda, newEmptyNode(), newEmptyNode(), newEmptyNode(),
@@ -387,6 +477,10 @@ proc testBlockCode*(body: NimNode; where: NimNode;
   ## set-up and probe).
   result = newEmptyNode()
   when testsMode != 0:
+    if testSelected.len > 0:
+      # A binary for one ``testCase``: a framework's block cannot be split
+      # into its tests, so it is left out whole.
+      return
     var names: seq[string]
     collectNames(body, "", names)
     for n in names:
